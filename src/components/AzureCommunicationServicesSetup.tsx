@@ -1,14 +1,14 @@
-import { FormEvent, FormEventHandler, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppState } from "../models";
-import { DefaultButton, getPropsWithDefaults, inputProperties, PrimaryButton, Stack, TextField } from "@fluentui/react";
+import { DefaultButton, PrimaryButton, TextField } from "@fluentui/react";
 import { CommunicationIdentityClient } from '@azure/communication-identity';
 import { v4 as uuidv4 } from "uuid";
 import { fromFlatCommunicationIdentifier } from "@azure/communication-react";
 import { CommunicationUserIdentifier, AzureCommunicationTokenCredential } from "@azure/communication-common";
 import { ChatClient } from "@azure/communication-chat";
 import "./AzureCommunicationServicesSetup.css";
-const ENDPOINT = process.env.REACT_APP_ACS_ENDPOINT;
-const CONNECTION_STRING = process.env.REACT_APP_ACS_CONNECTION_STRING;
+const ENDPOINT = process.env.REACT_APP_ACS_ENDPOINT!;
+const CONNECTION_STRING = process.env.REACT_APP_ACS_CONNECTION_STRING!;
 
 type AzureCommunicationServicesSetupProperties = {
     appState: AppState,
@@ -73,7 +73,10 @@ function AzureCommunicationServicesSetup(props: AzureCommunicationServicesSetupP
                                 addParticipantToChatThread(inputParticipantUserId)
                                     .then(x => {
                                         if (x) {
+                                            alert(`${inputParticipantUserId} を追加しました。`);
                                             setInputParticipantUserId('');
+                                        } else {
+                                            alert(`${inputParticipantUserId} の追加に失敗しました。`);
                                         }
                                     })} />
 
@@ -81,13 +84,14 @@ function AzureCommunicationServicesSetup(props: AzureCommunicationServicesSetupP
                     <div className="set-exist-chat-info">
                         <h4>既存の会議情報を入力</h4>
                         <TextField
-                            label="グループ ID"
+                            label="グループ ID または Teams 会議リンク"
                             value={inputGroupId}
                             onChange={(e, newValue) => setInputGroupId(newValue ?? '')}
                             className="input" />
                         <TextField
                             label="チャット スレッド ID"
                             value={inputThreadId}
+                            disabled={inputGroupId.startsWith('https://')}
                             onChange={(e, newValue) => setInputThreadId(newValue ?? '')}
                             className="input" />
                         <DefaultButton
