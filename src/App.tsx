@@ -1,26 +1,47 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import { useState } from 'react';
+import AzureCommunicationServicesSetup from './components/AzureCommunicationServicesSetup';
+import CallAndChat from './components/CallAndChat';
+import { AppState } from './models';
 
-function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+const ENDPOINT_URL = 'https://communicationservices-app-kaotaaca.communication.azure.com/';
+
+/**
+ * Entry point of your application.
+ */
+function App(): JSX.Element {
+  const [appState, setAppState] = useState<AppState>({
+    endopointUrl: ENDPOINT_URL
+  });
+
+  const updateAppState = (updatedValue: AppState) => setAppState({
+    ...appState,
+    ...updatedValue,
+  });
+
+  if (isFilled(appState)) {
+    return (
+      <CallAndChat
+        endpoint={appState.endopointUrl}
+        displayName={appState.displayName!}
+        userId={appState.userId!}
+        token={appState.token!}
+        location={appState.groupId!}
+        threadId={appState.threadId} />
+    )
+  } else {
+    return (
+      <AzureCommunicationServicesSetup
+        appState={appState}
+        updateAppState={updateAppState} />
+    );
+  }
+}
+
+function isFilled(appState: AppState) {
+  return appState.displayName !== undefined &&
+    appState.userId !== undefined &&
+    appState.token !== undefined &&
+    appState.groupId !== undefined;
 }
 
 export default App;
