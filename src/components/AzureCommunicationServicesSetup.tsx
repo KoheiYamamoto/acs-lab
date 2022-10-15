@@ -1,21 +1,19 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AppState } from "../models";
+import { FormEvent, useEffect, useState } from "react";
 import { DefaultButton, PrimaryButton, TextField } from "@fluentui/react";
 import { CommunicationIdentityClient } from '@azure/communication-identity';
 import { v4 as uuidv4 } from "uuid";
-import { fromFlatCommunicationIdentifier } from "@azure/communication-react";
+import { AzureCommunicationCallWithChatAdapterArgs, CallAndChatLocator, fromFlatCommunicationIdentifier } from "@azure/communication-react";
 import { CommunicationUserIdentifier, AzureCommunicationTokenCredential } from "@azure/communication-common";
 import { ChatClient } from "@azure/communication-chat";
 import "./AzureCommunicationServicesSetup.css";
-const ENDPOINT = process.env.REACT_APP_ACS_ENDPOINT!;
-const CONNECTION_STRING = process.env.REACT_APP_ACS_CONNECTION_STRING!;
+import { TeamsMeetingLinkLocator } from "@azure/communication-calling";
+import { ENDPOINT, CONNECTION_STRING } from '../settings';
 
 type AzureCommunicationServicesSetupProperties = {
-    appState: AppState,
-    updateAppState: (newValue: AppState) => void,
+    setCallWithChatAdapterArgs: (arg: AzureCommunicationCallWithChatAdapterArgs) => void,
 }
 
-function AzureCommunicationServicesSetup(props: AzureCommunicationServicesSetupProperties) {
+function AzureCommunicationServicesSetup({ setCallWithChatAdapterArgs }: AzureCommunicationServicesSetupProperties) {
     const {
         userId,
         token,
@@ -26,14 +24,20 @@ function AzureCommunicationServicesSetup(props: AzureCommunicationServicesSetupP
         setCustomCallAndChatInfo,
         createChatThread,
         addParticipantToChatThread,
-        isValidInput,
-        submit,
-    } = useAzureCommunicationServicesSetup(props);
+        callWithChatAdapterArgs,
+    } = useAzureCommunicationServicesSetup();
 
     const [inputTopic, setInputTopic] = useState("");
     const [inputGroupId, setInputGroupId] = useState("");
     const [inputThreadId, setInputThreadId] = useState("");
     const [inputParticipantUserId, setInputParticipantUserId] = useState("");
+
+    const submit = (e: FormEvent) => {
+        e.preventDefault();
+        if (!callWithChatAdapterArgs) return;
+
+        setCallWithChatAdapterArgs(callWithChatAdapterArgs)
+    };
 
     return (
         <div className="container">
@@ -114,19 +118,20 @@ function AzureCommunicationServicesSetup(props: AzureCommunicationServicesSetupP
 
                 <PrimaryButton type="submit"
                     text="会議に参加する"
-                    disabled={!isValidInput} />
+                    disabled={!callWithChatAdapterArgs} />
             </form>
         </div>
     );
 }
 
-function useAzureCommunicationServicesSetup({ appState, updateAppState }: AzureCommunicationServicesSetupProperties) {
-    const [userId, setUserId] = useState(appState.userId);
-    const [token, setToken] = useState(appState.token);
-    const [groupId, setGroupId] = useState(appState.groupId);
-    const [displayName, setDisplayName] = useState(appState.displayName);
-    const [threadId, setThreadId] = useState(appState.threadId);
+function useAzureCommunicationServicesSetup() {
+    const [userId, setUserId] = useState('');
+    const [token, setToken] = useState('');
+    const [groupId, setGroupId] = useState('');
+    const [displayName, setDisplayName] = useState('');
+    const [threadId, setThreadId] = useState('');
     const [credential, setCredential] = useState<AzureCommunicationTokenCredential>();
+    const [callWithChatAdapterArgs, setCallWithChatAdapterArgs] = useState<AzureCommunicationCallWithChatAdapterArgs>();
 
     useEffect(() => {
         // get user id
@@ -135,6 +140,7 @@ function useAzureCommunicationServicesSetup({ appState, updateAppState }: AzureC
             setUserId((await client.createUser()).communicationUserId);
             setGroupId('');
             setThreadId('');
+            setToken('');
         })();
     }, []);
 
@@ -152,16 +158,6 @@ function useAzureCommunicationServicesSetup({ appState, updateAppState }: AzureC
             setCredential(new AzureCommunicationTokenCredential(token.token));
         })();
     }, [userId]);
-
-    const isValidInput = useMemo(() => {
-        const isValidMeetingInfo = () => {
-            if (!groupId) return false;
-            if (groupId.startsWith("https://")) return true;
-            return !!threadId;
-        }
-
-        return !!userId && !!token && !!displayName && isValidMeetingInfo();
-    }, [userId, token, groupId, displayName, threadId]);
 
     const createChatThread = async (topic: string) => {
         if (!credential) return;
@@ -186,7 +182,7 @@ function useAzureCommunicationServicesSetup({ appState, updateAppState }: AzureC
 
         if (!result.invalidParticipants) {
             setGroupId(uuidv4());
-            setThreadId(result.chatThread?.id);
+            setThreadId(result.chatThread?.id ?? '');
         } else {
             setGroupId('');
             setThreadId('');
@@ -211,19 +207,35 @@ function useAzureCommunicationServicesSetup({ appState, updateAppState }: AzureC
     }
 
 
-    const submit = (e: FormEvent) => {
-        e.preventDefault();
-        if (!isValidInput) return;
+    useEffect(() => {
+        const isValidInput = () => {
+            const isValidMeetingInfo = () => {
+                // Teams リンクか、groupIdとthreadIdの両方が入っているかチェック
+                if (groupId?.startsWith("https://")) return true;
+                return !!groupId && !!threadId;
+            }
+    
+            // 入力情報がそろっているか確認
+            return !!userId && !!credential && !!displayName && isValidMeetingInfo();    
+        };
 
-        updateAppState({
-            ...appState,
-            userId,
-            token,
-            displayName: displayName,
-            groupId: groupId,
-            threadId,
+        if (!isValidInput) {
+            setCallWithChatAdapterArgs(undefined);
+            return;
+        }
+
+        const locator = groupId.startsWith("https://") ?
+            { meetingLink: groupId } as TeamsMeetingLinkLocator :
+            { callLocator: { groupId }, chatThreadId: threadId } as CallAndChatLocator;
+
+        setCallWithChatAdapterArgs({
+            endpoint: ENDPOINT,
+            userId: fromFlatCommunicationIdentifier(userId) as CommunicationUserIdentifier,
+            displayName,
+            credential: credential!,
+            locator,
         });
-    };
+    }, [userId, displayName, credential, groupId, threadId]);
 
     const setCustomCallAndChatInfo = (groupId: string, threadId: string) => {
         setGroupId(groupId);
@@ -240,8 +252,7 @@ function useAzureCommunicationServicesSetup({ appState, updateAppState }: AzureC
         setCustomCallAndChatInfo,
         createChatThread,
         addParticipantToChatThread,
-        isValidInput,
-        submit,
+        callWithChatAdapterArgs,
     };
 }
 
