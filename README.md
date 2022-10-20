@@ -4,7 +4,7 @@
 
 
 1. Node.js v16 をインストール
-2. Azure Communication Services を Azure 上の作成
+2. Azure Communication Services を Azure 上に作成
 3. Azure Communication Services のキーのページからエンドポイントと接続文字列を取得
 4. `.env.local` という名前のファイルを作成して以下の内容に変更
    ```
