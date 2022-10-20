@@ -14,6 +14,7 @@ type AzureCommunicationServicesSetupProperties = {
 }
 
 function AzureCommunicationServicesSetup({ setCallWithChatAdapterArgs }: AzureCommunicationServicesSetupProperties) {
+    
     const {
         userId,
         token,
